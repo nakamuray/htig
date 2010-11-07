@@ -43,9 +43,67 @@ Build-type:          Simple
 Cabal-version:       >=1.2
 
 
+flag debug
+    default: False
+
+Library
+  Exposed-modules:     HTIG
+                       HTIG.Action
+                       HTIG.Channel.Mention
+                       HTIG.Channel.OAuth
+                       HTIG.Channel.Timeline
+                       HTIG.Config
+                       HTIG.Core
+                       HTIG.CurlHttpClient
+                       HTIG.Database
+                       HTIG.Hooks.ShowTimeDiff
+                       HTIG.Hooks.Tid
+                       HTIG.IRCServer
+                       HTIG.IRCServer.Channel
+                       HTIG.IRCServer.Connection
+                       HTIG.IRCServer.Constants
+                       HTIG.IRCServer.Core
+                       HTIG.IRCServer.Main
+                       HTIG.IRCServer.Session
+                       HTIG.IRCServer.Utils
+                       HTIG.Main
+                       HTIG.Session
+                       HTIG.StatusHook
+                       HTIG.TwitterAPI
+                       HTIG.Utils
+
+  Other-modules:       Paths_htig
+
+  Build-depends:       base >= 4 && < 5,
+                       binary,
+                       bytestring,
+                       containers,
+                       curl,
+                       directory,
+                       dyre,
+                       fastirc,
+                       filepath,
+                       hoauth,
+                       json,
+                       mtl,
+                       network,
+                       old-locale,
+                       parsec >= 3 && < 4,
+                       stm,
+                       time,
+                       utf8-string,
+                       HDBC,
+                       HDBC-sqlite3
+
+  ghc-options:         -O2 -Wall -fno-warn-unused-do-bind
+
+  if flag(debug)
+    cpp-options:       -DDEBUG
+
+
 Executable htig
   -- .hs or .lhs file containing the Main module.
-  -- Main-is:             
+  Main-is:             htig.hs
   
   -- Packages needed in order to build this package.
   -- Build-depends:       
@@ -56,3 +114,7 @@ Executable htig
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
   
+  ghc-options:         -O2 -Wall -fno-warn-unused-do-bind
+
+  if flag(debug)
+    cpp-options:       -DDEBUG
