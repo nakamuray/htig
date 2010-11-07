@@ -3,6 +3,7 @@ module HTIG.Main
     ) where
 
 import Control.Applicative ((<$>))
+import Data.List (isPrefixOf)
 import Data.Time (getCurrentTime)
 import System.Environment (getArgs)
 import System.Exit (exitSuccess, exitFailure)
@@ -53,8 +54,11 @@ parseArgs' p []                      = return p
 parseArgs' _ ("--help":_)            = printHelp >> exitSuccess
 parseArgs' _ ("--version":_)         = putStrLn (s appName ++ "-" ++ s appVersion) >> exitSuccess
 parseArgs' p ("--force-reconf":args) = parseArgs' p { Dyre.forceRecomp = True } args
+parseArgs' p ("--deny-reconf":args)  = parseArgs' p args
 parseArgs' p ("--":args)             = return p { Dyre.ghcOpts = Dyre.ghcOpts p ++ args }
-parseArgs' _ (arg:_)                 = hPutStrLn stderr ("Error: unknown option: " ++ arg) >> exitFailure
+parseArgs' p (arg:args)
+    | "--dyre-" `isPrefixOf` arg     = parseArgs' p args
+    | otherwise                      = hPutStrLn stderr ("Error: unknown option: " ++ arg) >> exitFailure
 
 printHelp :: IO ()
 printHelp = putStrLn $ unlines $
@@ -63,6 +67,7 @@ printHelp = putStrLn $ unlines $
     , "  --help            print this message"
     , "  --version         print the version number"
     , "  --force-reconf    force recompile your ~/.htig/htig.hs"
+    , "  --deny-reconf     disables recompilation"
     ]
 
 htig :: HConfig -> IO ()
