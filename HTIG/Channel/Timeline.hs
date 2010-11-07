@@ -37,6 +37,8 @@ instance IChannel TimelineChannel GlobalState SessionState where
         killHwhenRunning ttl
         killHwhenRunning tf
 
+    onPart c _ _ = onQuit c undefined undefined undefined
+
     onJoin (TimelineChannel ttl tf) cname u = do
         writeJoin u cname
         Just tok <- sToken <$> getLocal

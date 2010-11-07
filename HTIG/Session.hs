@@ -103,6 +103,19 @@ instance ISession HSession GlobalState SessionState where
 
         stripAction = B.init . B.tail . B.dropWhile (/= ' ')
 
+    handlePart _ chans marg = whenHasNickAndUser $ do
+        debug chans
+        Just nick <- sNick <$> getLocal
+        forM_ (Set.toList chans) $ \cname -> do
+            mchan <- lookupJoinedChan cname
+            case mchan of
+                Just chan -> do
+                    partChannel chan (Nick nick)
+                    modifyLocal $ \s -> s { sJoinedChannels = filter ((/= cname) . channelName) $ sJoinedChannels s }
+                    writeConn' $ Message (Just $ Nick nick) $ PartCmd (Set.singleton cname) Nothing
+                    debug ("part from" :: String, cname)
+                Nothing   -> return ()
+
     -- TODO: implement
     --handleCommand "INVITE" _ chans arg = undefined
 

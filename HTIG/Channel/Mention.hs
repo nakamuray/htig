@@ -32,6 +32,7 @@ mention cname = do
 
 instance IChannel MentionChannel GlobalState SessionState where
     onQuit (MentionChannel tv) _ _ _ = killHwhenRunning tv
+    onPart c _ _ = onQuit c undefined undefined undefined
 
     onJoin (MentionChannel tv) cname u = do
         writeJoin u cname
