@@ -135,7 +135,7 @@ maybeToResult Nothing = Error "Nothing"
 
 -- | get home timeline
 getHomeTimeline :: Token
-                -> Maybe Integer -- ^ number of record to retrieve
+                -> Maybe Integer -- ^ Returns results with an ID greater than this ID
                 -> IO (Result Timeline)
 getHomeTimeline tok mLastId = do
     let query = ("count", "20") : (maybeToList $ (("since_id", ) . show) <$> mLastId)
@@ -145,7 +145,7 @@ getHomeTimeline tok mLastId = do
 
 -- | get home mentions
 getMentions :: Token
-            -> Maybe Integer -- ^ number of record to retrieve
+            -> Maybe Integer -- ^ Returns results with an ID greater than this ID
             -> IO (Result Timeline)
 getMentions tok mLastId = do
     let query = ("count", "20") : (maybeToList $ (("since_id", ) . show) <$> mLastId)
