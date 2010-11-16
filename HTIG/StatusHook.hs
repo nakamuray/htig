@@ -92,3 +92,12 @@ doShowRT = doF' $ \st ->
     case stRetweetedStatus st of
         Just _  -> st { stText = "\x03\&10\9850\x0f " ++ stText st }
         Nothing -> st
+
+
+-- | filter status
+doFilterStatus :: (Status -> Bool) -> StatusHook
+doFilterStatus f = doF $ \ms -> do
+    s <- ms
+    if f s
+      then Just s
+      else Nothing
