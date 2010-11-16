@@ -1,5 +1,30 @@
-{-# LANGUAGE OverloadedStrings #-}
-module HTIG.Utils where
+{-# LANGUAGE CPP, OverloadedStrings #-}
+module HTIG.Utils
+    ( sendWelcome
+    , writeServerCommand
+    , writeServerError
+    , writeJoin
+    , userSpecToNickName
+    , (++.)
+    , getUserCacheDir
+    , makeUserCacheDir
+    , whenM
+    , joinTo
+    , isJoined
+    , createChannelForName
+    , lookupChannelFactory
+    , updateTwitterStatus
+    , withTransaction
+    , withTransactionH
+    , withConnection
+    , withConnectionH
+    , writeStatus
+    , writeNoticeStatus
+    , writeStatus'
+    , b
+    , s
+    , snip
+    ) where
 
 import Control.Applicative ((<$>), (<*))
 import Control.Monad (when)
@@ -18,6 +43,8 @@ import HTIG.IRCServer.Utils
 import HTIG.TwitterAPI
 
 import qualified HTIG.Database (Connection)
+
+#include "../debug.hs"
 
 
 sendWelcome :: HTIG ()
@@ -135,7 +162,7 @@ writeStatus' w t cname st = do
     case mst of
         Just st' -> let nick = BU.fromString $ usScreenName $ stUser st'
                     in w (Nick nick) cname $ BU.fromString $ stText st'
-        Nothing  -> return ()
+        Nothing  -> debug ("this status is dropped", st) >> return ()
 
 b :: String -> BU.ByteString
 b = BU.fromString
