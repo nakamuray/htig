@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-module HTIG.Config where
+module HTIG.Config
+    ( defaultConfig
+    ) where
 
 import HTIG.Core
 import HTIG.Action
