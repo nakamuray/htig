@@ -15,6 +15,7 @@ import qualified Data.Map as Map
 
 myStatusHook = composeAll
     [ doUnHtmlEscape
+    , doUnHtmlEntityRef
     , doShowRT
     , doShowTimeDiff
     , doShowTid

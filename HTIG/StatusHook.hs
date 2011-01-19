@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternGuards #-}
 -- An EDSL for StatusHooks
 -- Largely inspired by (and copied from) XMonad.ManageHook
 
@@ -5,6 +6,7 @@ module HTIG.StatusHook where
 
 import Control.Monad
 import Control.Monad.Trans
+import Data.Char (chr, isDigit)
 import Data.Monoid
 import Network.FastIRC.Types (ChannelName)
 
@@ -72,10 +74,13 @@ doF = doH . fmap
 doF' :: (Status -> Status) -> StatusHook
 doF' = doF . fmap
 
+doT :: (String -> String) -> StatusHook
+doT f = doF' $ \st -> st { stText = f $ stText st }
+
 
 -- | StatusHook that unescape "&amp;", "&gt;", "&lt;" and "&quot;"
 doUnHtmlEscape :: StatusHook
-doUnHtmlEscape = doF' $ \st -> st { stText = unHtmlEscape $ stText st }
+doUnHtmlEscape = doT unHtmlEscape
 
 unHtmlEscape :: String -> String
 unHtmlEscape ('&':'a':'m':'p':';':cs)     = '&' : unHtmlEscape cs
@@ -84,6 +89,18 @@ unHtmlEscape ('&':'l':'t':';':cs)         = '<' : unHtmlEscape cs
 unHtmlEscape ('&':'q':'u':'o':'t':';':cs) = '"' : unHtmlEscape cs
 unHtmlEscape (c:cs)                       = c   : unHtmlEscape cs
 unHtmlEscape []                           = []
+
+
+-- | StatusHook that convert HTML entity refs to unicode char
+doUnHtmlEntityRef :: StatusHook
+doUnHtmlEntityRef = doT unHtmlEntityRef
+
+unHtmlEntityRef :: String -> String
+unHtmlEntityRef ('&':'#':cs)
+    | (h, ';':t) <- span (/=';') cs,
+      all isDigit h    = chr (read h) : unHtmlEntityRef t
+unHtmlEntityRef (c:cs) = c : unHtmlEntityRef cs
+unHtmlEntityRef []     = []
 
 
 -- | StatusHook that prepend "♺ " to status text
