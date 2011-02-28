@@ -268,7 +268,7 @@ callAPI :: Method -> Token
         -> String             -- ^ path component of target API
         -> [(String, String)] -- ^ query parameters
         -> IO (Result JSValue)
-callAPI m tok path query = runOAuthM tok $ do
+callAPI m tok path query = (runOAuthM tok $ do
     putToken tok
     let req = mkAPIRequest m (path ++ ".json") query
     debug req
@@ -278,7 +278,8 @@ callAPI m tok path query = runOAuthM tok $ do
         200 -> return $ decode $ BU.toString $ rspPayload resp
         -- maybe connection error
         0   -> return $ Error "unknown error"
-        _   -> return $ Error $ show (status resp) ++ " " ++ show (reason resp)
+        _   -> return $ Error $ show (status resp) ++ " " ++ show (reason resp))
+  `catch` (\e -> return $ Error $ show e)
 
 
 mkAPIRequest :: Method -> String -> [(String, String)] -> Request
