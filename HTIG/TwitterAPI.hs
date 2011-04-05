@@ -30,7 +30,7 @@ import Data.Time (UTCTime, parseTime)
 import Network.OAuth.Consumer (Application, Token(application), SigMethod(HMACSHA1), OAuthMonadT,
                                oauthParams, runOAuthM, fromApplication, signRq2, oauthRequest, getToken, putToken,
                                serviceRequest, injectOAuthVerifier)
-import HTIG.CurlHttpClient (CurlHttpClient(CurlHttpClient))
+import HTIG.EnumHttpClient (EnumHttpClient(EnumHttpClient))
 import Network.OAuth.Http.Request (Request(method, pathComps, qString), Method(GET, POST),
                                    findWithDefault, parseURL, fromList, union)
 import Network.OAuth.Http.Response (Response(status, reason, rspPayload))
@@ -272,7 +272,7 @@ callAPI m tok path query = (runOAuthM tok $ do
     putToken tok
     let req = mkAPIRequest m (path ++ ".json") query
     debug req
-    resp <- signRq2 HMACSHA1 Nothing req >>= serviceRequest CurlHttpClient
+    resp <- signRq2 HMACSHA1 Nothing req >>= serviceRequest EnumHttpClient
     --debug resp
     case status resp of
         200 -> return $ decode $ BU.toString $ rspPayload resp
@@ -310,11 +310,11 @@ doOAuth :: Application
        -> IO Token
 doOAuth app asker = runOAuthM (fromApplication app) $ do
     -- get request token
-    signRq2 HMACSHA1 Nothing (fromJust . parseURL $ reqURL) >>= oauthRequest CurlHttpClient
+    signRq2 HMACSHA1 Nothing (fromJust . parseURL $ reqURL) >>= oauthRequest EnumHttpClient
     -- display authorization URL to user, get verifier from user
     askAuthorizationBy toAuthURL asker
     -- get access token
-    signRq2 HMACSHA1 Nothing (fromJust . parseURL $ accURL) >>= oauthRequest CurlHttpClient
+    signRq2 HMACSHA1 Nothing (fromJust . parseURL $ accURL) >>= oauthRequest EnumHttpClient
     getToken
 
 askAuthorizationBy :: MonadIO m => (Token -> String) -> (String -> IO String) -> OAuthMonadT m ()

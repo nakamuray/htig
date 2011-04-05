@@ -54,7 +54,7 @@ Library
                        HTIG.Channel.Timeline
                        HTIG.Config
                        HTIG.Core
-                       HTIG.CurlHttpClient
+                       HTIG.EnumHttpClient
                        HTIG.Database
                        HTIG.Hooks.ShowTimeDiff
                        HTIG.Hooks.Tid
@@ -77,8 +77,9 @@ Library
   Build-depends:       base >= 4 && < 5,
                        binary,
                        bytestring,
+                       case-insensitive,
                        containers >= 0.3 && < 0.4,
-                       curl,
+                       http-enumerator,
                        directory,
                        dyre,
                        fastirc,
