@@ -5,16 +5,12 @@ module HTIG.EnumHttpClient
 
 import Control.Arrow
 import Network.HTTP.Enumerator as HE
-import Control.Monad.Fix
 import Network.OAuth.Http.Request as OR
 import Network.OAuth.Http.Response
 import qualified Network.OAuth.Http.HttpClient
 import Control.Monad.Trans
-import Data.Char (chr,ord)
 import Data.CaseInsensitive (original, mk)
-import Network.URI
 import qualified Data.ByteString.Char8 as BC
-import qualified Data.ByteString.Lazy as B
 
 import qualified Paths_htig as P (version)
 import Data.Version (showVersion)
