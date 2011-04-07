@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, OverloadedStrings, PatternGuards, TupleSections #-}
+{-# LANGUAGE CPP, OverloadedStrings, PatternGuards, TupleSections, Rank2Types #-}
 module HTIG.TwitterAPI
     ( Timeline
     , Status(..)
@@ -14,6 +14,7 @@ module HTIG.TwitterAPI
     , retweet
     , getUserTimeline
     , getRateLimit
+    , userStreamIter
     , doOAuth
 
     -- re-export for convention
@@ -22,6 +23,7 @@ module HTIG.TwitterAPI
     ) where
 
 import Control.Applicative ((<$>), (<*>), (<|>))
+import Control.Monad (forM_)
 import Control.Monad.Trans (MonadIO, liftIO)
 import Data.Function (on)
 import Data.List (sortBy)
@@ -30,7 +32,7 @@ import Data.Time (UTCTime, parseTime)
 import Network.OAuth.Consumer (Application, Token(application), SigMethod(HMACSHA1), OAuthMonadT,
                                oauthParams, runOAuthM, fromApplication, signRq2, oauthRequest, getToken, putToken,
                                serviceRequest, injectOAuthVerifier)
-import HTIG.EnumHttpClient (EnumHttpClient(EnumHttpClient))
+import HTIG.EnumHttpClient (EnumHttpClient(EnumHttpClient, EnumHttpClientWithIter), EnumResponseHandler)
 import Network.OAuth.Http.Request (Request(method, pathComps, qString), Method(GET, POST),
                                    findWithDefault, parseURL, fromList, union)
 import Network.OAuth.Http.Response (Response(status, reason, rspPayload))
@@ -39,6 +41,14 @@ import System.Locale (defaultTimeLocale)
 import Text.JSON (JSValue(JSObject, JSNull), Result(Ok, Error), JSON, JSObject, decode, readJSON, valFromObj)
 
 import qualified Data.ByteString.Lazy.UTF8 as BU
+import qualified Data.ByteString.UTF8 as BSU
+
+import Network.HTTP.Enumerator (Response(Response, responseBody))
+import qualified Network.HTTP.Types as W
+import Data.Enumerator ((=$))
+import qualified Data.Enumerator as E
+import qualified Data.Enumerator.Binary as EB
+import qualified Data.Enumerator.List as EL
 
 
 #include "../debug.hs"
@@ -53,6 +63,12 @@ twitterAPIURL = "https://api.twitter.com/"
 
 twitterAPIVersion :: Int
 twitterAPIVersion = 1
+
+twitterStreamAPIURL :: String
+twitterStreamAPIURL = "https://userstream.twitter.com/"
+
+twitterStreamAPIVersion :: Int
+twitterStreamAPIVersion = 2
 
 
 type Timeline = [Status]
@@ -268,11 +284,16 @@ callAPI :: Method -> Token
         -> String             -- ^ path component of target API
         -> [(String, String)] -- ^ query parameters
         -> IO (Result JSValue)
-callAPI m tok path query = (runOAuthM tok $ do
+callAPI m tok path query = callAPI' tok req EnumHttpClient
+  where
+    req = mkAPIRequest m (path ++ ".json") query
+
+
+callAPI' :: Token -> Request -> EnumHttpClient -> IO (Result JSValue)
+callAPI' tok req client = (runOAuthM tok $ do
     putToken tok
-    let req = mkAPIRequest m (path ++ ".json") query
     debug req
-    resp <- signRq2 HMACSHA1 Nothing req >>= serviceRequest EnumHttpClient
+    resp <- signRq2 HMACSHA1 Nothing req >>= serviceRequest client
     --debug resp
     case status resp of
         200 -> return $ decode $ BU.toString $ rspPayload resp
@@ -283,13 +304,73 @@ callAPI m tok path query = (runOAuthM tok $ do
 
 
 mkAPIRequest :: Method -> String -> [(String, String)] -> Request
-mkAPIRequest m path query = req
+mkAPIRequest = mkAPIRequest' twitterAPIURL twitterAPIVersion
+
+mkAPIRequest' :: String -- API URL
+              -> Int    -- API Version
+              -> Method -> String -> [(String, String)] -> Request
+mkAPIRequest' url ver m path query = req
   where
-    rawReq = fromJust $ parseURL twitterAPIURL
+    rawReq = fromJust $ parseURL url
     req = rawReq { method = m
-                 , pathComps = "" : show twitterAPIVersion : splitBy (== '/') path
+                 , pathComps = "" : show ver : splitBy (== '/') path
                  , qString = fromList query `union` qString rawReq
                  }
+
+
+--
+-- | User Stream API
+--
+
+userStreamIter :: Token -> (Status -> IO a) -> IO (Result ())
+userStreamIter tok f = callStreamAPI handler GET tok "user" []
+  where
+    handler (W.Status sc _) hs = do
+        splitStreamE =$ do
+            -- drop initial stream, friends list
+            EL.head
+            E.continue go
+        return (Response sc hs "")
+    go (E.Chunks css) = do
+        forM_ css $ \cs -> case decode cs >>= decodeStatus of
+            Ok st   -> liftIO (f st) >> return ()
+            Error e -> debug e
+        E.continue go
+    go E.EOF        = E.yield () E.EOF
+
+
+-- | call twitter API
+-- callStreamAPI handler GET tok "user" []
+callStreamAPI :: EnumResponseHandler
+              -> Method -> Token
+              -> String             -- ^ path component of target API
+              -> [(String, String)] -- ^ query parameters
+              -> IO (Result ())
+callStreamAPI iter m tok path query = do
+    resp <- callAPI' tok req $ EnumHttpClientWithIter $ \s hs -> do
+        resp <- iter s hs
+        -- to always return JSNull
+        return $ resp { responseBody = "null" }
+
+    case resp of
+        Ok JSNull -> return $ Ok ()
+        Error e   -> return $ Error e
+  where
+    req = mkStreamAPIRequest m (path ++ ".json") query
+
+
+mkStreamAPIRequest :: Method -> String -> [(String, String)] -> Request
+mkStreamAPIRequest = mkAPIRequest' twitterStreamAPIURL twitterStreamAPIVersion
+
+splitStreamE :: Monad m => E.Enumeratee BSU.ByteString String m b
+splitStreamE iter =
+    EB.splitWhen (==13 {- '\r' -})
+        =$ EL.map BSU.toString
+        =$ EL.map removeInitialNewline
+        =$ EL.filter (/="") iter
+  where
+    removeInitialNewline ('\n':cs) = cs
+    removeInitialNewline cs        = cs
 
 --
 -- | Twitter OAuth handler
