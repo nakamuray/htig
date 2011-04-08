@@ -65,7 +65,7 @@ instance IChannel TimelineChannel GlobalState SessionState where
             Error e ->
                 writeServerCommand $ NoticeCmd (Set.singleton cname) $ b("cannot fetch friends: " ++ e)
 
-        forkHwhenNotRunning ttl $ homeTimelineFetcher cname chan
+        forkHwhenNotRunning ttl $ showRecentTimeline cname >> homeTimelineFetcher cname chan
         forkHwhenNotRunning tf $ friendsFetcher cname
         forkHwhenNotRunning tu $ userStreamFetcher chan
 
@@ -86,6 +86,23 @@ killHwhenRunning t = do
                 killH tid
                 liftIO $ atomically $ writeTVar t Nothing
             Nothing  -> return ()
+
+showRecentTimeline ::ChannelName ->  HTIG ()
+showRecentTimeline cname = do
+    Just tok <- sToken <$> getLocal
+    Just nick <- sNick <$> getLocal
+    let nick' = s nick
+    mlsid <- withConnection $ getTLLastStatusId nick'
+    resTl <- liftIO $ getHomeTimeline tok mlsid
+    case resTl of
+        Ok tl -> do
+            forM_ tl $ \t -> do
+                --debug t
+                withTransaction $ addToTimeline nick' t
+                writeStatus cname t
+        Error e ->
+            writeServerCommand $ NoticeCmd (Set.singleton cname) $ b("cannot fetch timeline: " ++ e)
+
 
 homeTimelineFetcher :: ChannelName -> TChan Status -> HTIG ()
 homeTimelineFetcher cname chan = do
