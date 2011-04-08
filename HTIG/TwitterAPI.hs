@@ -352,6 +352,8 @@ callStreamAPI iter m tok path query = do
         -- to always return JSNull
         return $ resp { responseBody = "null" }
 
+    debug resp
+
     case resp of
         Ok JSNull -> return $ Ok ()
         Error e   -> return $ Error e

@@ -7,6 +7,7 @@ import Control.Applicative ((<$>))
 import Control.Concurrent (ThreadId, forkIO, killThread, threadDelay)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, readTVar, writeTVar)
+import Control.Concurrent.STM.TChan (TChan, newTChanIO, readTChan, writeTChan)
 import Control.Monad (forM_, when)
 import Data.List (intercalate)
 import Data.Maybe (fromJust, isJust)
@@ -24,22 +25,27 @@ import HTIG.Utils
 data TimelineChannel = TimelineChannel
     { timelineFetcherId :: TVar (Maybe ThreadId)
     , friendsFetcherId :: TVar (Maybe ThreadId)
+    , userStreamFetcherId :: TVar (Maybe ThreadId)
+    , userStreamChannel :: TChan Status
     }
 
 timeline :: HChannelFactory
 timeline cname = do
     ttl <- liftIO $ newTVarIO Nothing
     tf <- liftIO $ newTVarIO Nothing
-    return $ Channel (TimelineChannel ttl tf) cname
+    tu <- liftIO $ newTVarIO Nothing
+    chan <- liftIO $ newTChanIO
+    return $ Channel (TimelineChannel ttl tf tu chan) cname
 
 instance IChannel TimelineChannel GlobalState SessionState where
-    onQuit (TimelineChannel ttl tf) _ _ _ = do
+    onQuit (TimelineChannel ttl tf tu _) _ _ _ = do
         killHwhenRunning ttl
         killHwhenRunning tf
+        killHwhenRunning tu
 
     onPart c _ _ = onQuit c undefined undefined undefined
 
-    onJoin (TimelineChannel ttl tf) cname u = do
+    onJoin (TimelineChannel ttl tf tu chan) cname u = do
         writeJoin u cname
         Just tok <- sToken <$> getLocal
         Just nick <- sNick <$> getLocal
@@ -59,8 +65,9 @@ instance IChannel TimelineChannel GlobalState SessionState where
             Error e ->
                 writeServerCommand $ NoticeCmd (Set.singleton cname) $ b("cannot fetch friends: " ++ e)
 
-        forkHwhenNotRunning ttl $ homeTimelineFetcher cname
+        forkHwhenNotRunning ttl $ homeTimelineFetcher cname chan
         forkHwhenNotRunning tf $ friendsFetcher cname
+        forkHwhenNotRunning tu $ userStreamFetcher chan
 
     onPrivmsg _ cname u arg = updateTwitterStatus cname arg
 
@@ -80,23 +87,15 @@ killHwhenRunning t = do
                 liftIO $ atomically $ writeTVar t Nothing
             Nothing  -> return ()
 
-homeTimelineFetcher :: ChannelName -> HTIG ()
-homeTimelineFetcher cname = do
+homeTimelineFetcher :: ChannelName -> TChan Status -> HTIG ()
+homeTimelineFetcher cname chan = do
     Just tok <- sToken <$> getLocal
     Just nick <- sNick <$> getLocal
     let nick' = s nick
-    mlsid <- withConnection $ getTLLastStatusId nick'
-    resTl <- liftIO $ getHomeTimeline tok mlsid
-    case resTl of
-        Ok tl -> do
-            forM_ tl $ \t -> do
-                --debug t
-                withTransaction $ addToTimeline nick' t
-                writeStatus cname t
-        Error e ->
-            writeServerCommand $ NoticeCmd (Set.singleton cname) $ b("cannot fetch timeline: " ++ e)
-    liftIO $ threadDelay $ 60 * 1000 * 1000
-    homeTimelineFetcher cname
+    st <- liftIO $ atomically $ readTChan chan
+    withTransaction $ addToTimeline nick' st
+    writeStatus cname st
+    homeTimelineFetcher cname chan
 
 friendsFetcher :: ChannelName -> HTIG ()
 friendsFetcher cname = do
@@ -132,3 +131,12 @@ friendsFetcher' cname friends = do
         Error e -> do
             writeServerCommand $ NoticeCmd (Set.singleton cname) $ b("cannot fetch friends: " ++ e)
             friendsFetcher' cname friends
+
+userStreamFetcher :: TChan Status -> HTIG ()
+userStreamFetcher chan = do
+    Just tok <- sToken <$> getLocal
+    liftIO $ userStreamFetcher' tok chan
+    userStreamFetcher chan
+
+userStreamFetcher' :: Token -> TChan Status -> IO (Result ())
+userStreamFetcher' tok chan = userStreamIter tok $ atomically . writeTChan chan
