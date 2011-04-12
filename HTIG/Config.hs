@@ -17,6 +17,7 @@ myStatusHook = composeAll
     [ doUnHtmlEscape
     , doUnHtmlEntityRef
     , doShowRT
+    , doShowReply
     , doShowTimeDiff
     , doShowTid
     ]
