@@ -111,6 +111,14 @@ doShowRT = doF' $ \st ->
         Nothing -> st
 
 
+-- | StatusHook that prepend "↻ " to reply status text
+doShowReply :: StatusHook
+doShowReply = doF' $ \st ->
+    case stInReplyToStatusId st of
+        Just _  -> st { stText = "\x03\&10\8635\x0f " ++ stText st }
+        Nothing -> st
+
+
 -- | filter status
 doFilterStatus :: (Status -> Bool) -> StatusHook
 doFilterStatus f = doF $ \ms -> do
