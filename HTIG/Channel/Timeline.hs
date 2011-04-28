@@ -152,7 +152,10 @@ friendsFetcher' cname friends = do
 userStreamFetcher :: TChan Status -> HTIG ()
 userStreamFetcher chan = do
     Just tok <- sToken <$> getLocal
+    debug "connect to user stream"
     liftIO $ userStreamFetcher' tok chan
+    debug "user stream closed"
+    liftIO $ threadDelay $ 10 * 1000 * 1000
     userStreamFetcher chan
 
 userStreamFetcher' :: Token -> TChan Status -> IO (Result ())
