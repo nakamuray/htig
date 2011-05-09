@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, OverloadedStrings #-}
+{-# LANGUAGE CPP, MultiParamTypeClasses, OverloadedStrings #-}
 module HTIG.Channel.Timeline
     ( timeline
     ) where
@@ -20,6 +20,8 @@ import HTIG.Database
 import HTIG.IRCServer
 import HTIG.TwitterAPI
 import HTIG.Utils
+
+#include "../../debug.hs"
 
 
 data TimelineChannel = TimelineChannel
