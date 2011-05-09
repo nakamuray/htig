@@ -127,6 +127,7 @@ friendsFetcher cname = do
             friendsFetcher' cname friends
         Error e -> do
             writeServerCommand $ NoticeCmd (Set.singleton cname) $ b("cannot fetch friends: " ++ e)
+            liftIO $ threadDelay $ 10 * 1000 * 1000
             friendsFetcher cname
 
 friendsFetcher' :: ChannelName -> [TwitterUser] -> HTIG ()
