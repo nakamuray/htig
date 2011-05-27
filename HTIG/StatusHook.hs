@@ -107,7 +107,7 @@ unHtmlEntityRef []     = []
 doShowRT :: StatusHook
 doShowRT = doF' $ \st ->
     case stRetweetedStatus st of
-        Just _  -> st { stText = "\x03\&10\9850\x0f " ++ stText st }
+        Just _  -> st { stText = color 10 "\9850 " ++ stText st }
         Nothing -> st
 
 
@@ -115,7 +115,7 @@ doShowRT = doF' $ \st ->
 doShowReply :: StatusHook
 doShowReply = doF' $ \st ->
     case stInReplyToStatusId st of
-        Just _  -> st { stText = "\x03\&10\8635\x0f " ++ stText st }
+        Just _  -> st { stText = color 10 "\8635 " ++ stText st }
         Nothing -> st
 
 
@@ -126,3 +126,7 @@ doFilterStatus f = doF $ \ms -> do
     if f s
       then Just s
       else Nothing
+
+
+color :: Int -> String -> String
+color cNum cs = "\x03\&" ++ show cNum ++ cs ++ "\x0f"

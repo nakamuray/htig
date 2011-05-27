@@ -27,7 +27,7 @@ doShowTid = doH' $ \st -> do
                t <- genTid conn
                saveTid st t conn
                return t
-    let text = stText st ++ " \x03\&10[" ++ tid ++ "]\x0f"
+    let text = stText st ++ color 10 (" [" ++ tid ++ "]")
     return $ Just $ st { stText = text }
 
 
