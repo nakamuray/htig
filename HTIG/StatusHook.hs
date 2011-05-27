@@ -103,12 +103,15 @@ unHtmlEntityRef (c:cs) = c : unHtmlEntityRef cs
 unHtmlEntityRef []     = []
 
 
--- | StatusHook that prepend "♺ " to status text
+-- | StatusHook that replace status with retweeted one,
+--   prepend "♺ " to status text and append "[retweeted by screen_name]"
 doShowRT :: StatusHook
 doShowRT = doF' $ \st ->
     case stRetweetedStatus st of
-        Just _  -> st { stText = color 10 "\9850 " ++ stText st }
-        Nothing -> st
+        Just st' -> st' { stText = color 10 "\9850 " ++ stText st' ++ color 10 (" [retweeted by " ++ usScreenName (stUser st) ++ "]")
+                        , stId = stId st -- set original status id
+                        }
+        Nothing  -> st
 
 
 -- | StatusHook that prepend "↻ " to reply status text

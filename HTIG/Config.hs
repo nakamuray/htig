@@ -16,10 +16,10 @@ import qualified Data.Map as Map
 myStatusHook = composeAll
     [ doUnHtmlEscape
     , doUnHtmlEntityRef
-    , doShowRT
     , doShowReply
     , doShowTimeDiff
     , doShowTid
+    , doShowRT
     ]
 
 myChannels =
