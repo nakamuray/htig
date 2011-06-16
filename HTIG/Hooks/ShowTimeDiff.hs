@@ -24,4 +24,4 @@ prettyShowTime t = do
           | d < 60 * 60 * 24 -> return $ " \03\&10[about " ++ show (truncate d `div` (60 * 60)) ++ " hours ago]\x0f"
           | otherwise         -> do
             t' <- utcToLocalZonedTime t
-            return $ formatTime defaultTimeLocale "\03\&10[%-l %p %b %eth]\x0f" t'
+            return $ formatTime defaultTimeLocale " \03\&10[%-l %p %b %eth]\x0f" t'
