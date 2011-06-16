@@ -20,8 +20,8 @@ prettyShowTime t = do
     now <- getCurrentTime
     case diffUTCTime now t of
         d | d < 60 * 60      -> return "" -- ignore recent post
-          | d < 60 * 60 * 2  -> return $ " \03\&10[about 1 hour ago]\x0f"
-          | d < 60 * 60 * 24 -> return $ " \03\&10[about " ++ show (truncate d `div` (60 * 60)) ++ " hours ago]\x0f"
+          | d < 60 * 60 * 2  -> return $ color 10 $ " [about 1 hour ago]"
+          | d < 60 * 60 * 24 -> return $ color 10 $ " [about " ++ show (truncate d `div` (60 * 60)) ++ " hours ago]"
           | otherwise         -> do
             t' <- utcToLocalZonedTime t
-            return $ formatTime defaultTimeLocale " \03\&10[%-l %p %b %eth]\x0f" t'
+            return $ color 10 $ formatTime defaultTimeLocale " [%-l %p %b %eth]" t'
