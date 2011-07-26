@@ -84,7 +84,7 @@ data Status = Status
     , stFavorited :: Bool
     , stInReplyToScreenName :: Maybe String
     , stUser :: TwitterUser
-    --, stEntities
+    --, stEntities :: Entities
     , stRetweetedStatus :: Maybe Status
     } deriving (Show, Read, Eq)
 
@@ -98,24 +98,48 @@ data TwitterUser = TwitterUser
     { usId :: Integer
     } deriving (Show, Read, Eq, Ord)
 
+data Entities = Entities
+    { enUrls  :: [UrlEntity]
+    -- TODO:
+    --, enMedia :: [MediaEntity]
+    --, enUserMentions :: [UserMentionEntity]
+    --, enHashtags :: [HashtagEntiry]
+    } deriving (Show, Read, Eq)
+
+data UrlEntity = UrlEntity
+    { ueUrl         :: String
+    , ueDisplayUrl  :: Maybe String
+    , ueExpandedUrl :: Maybe String
+    , ueIndices     :: (Int, Int)
+    } deriving (Show, Read, Eq)
+
 
 decodeTimeline :: JSValue -> Result Timeline
 decodeTimeline input = readJSON input >>= mapM decodeStatus >>= return . sortBy (compare `on` stId)
 
 
 decodeStatus :: JSValue -> Result Status
-decodeStatus (JSObject obj) = Status <$> (maybeToResult . parseTime' =<< valFromObj "created_at" obj)
-                                     <*> valFromObj "id" obj
-                                     <*> valFromObj "text" obj
-                                     <*> valFromObj "source" obj
-                                     <*> valFromObj "truncated" obj
-                                     <*> valMayFromObj "in_reply_to_status_id" obj
-                                     <*> valMayFromObj "in_reply_to_user_id" obj
-                                     <*> valFromObj "favorited" obj
-                                     <*> valMayFromObj "in_reply_to_screen_name" obj
-                                     <*> (decodeUser =<< valFromObj "user" obj)
-                                     <*> getRetweetedStatus obj
+decodeStatus v@(JSObject obj) = do
+    st <- decodeStatus' v
+    case decodeEntities =<< valFromObj "entities" obj of
+        Ok Entities { enUrls = ues } -> return st { stText = expandUrls ues $ stText st }
+        _ -> return st
 decodeStatus j = Error $ "invalid JSValue" ++ show j
+
+
+decodeStatus' :: JSValue -> Result Status
+decodeStatus' (JSObject obj) = Status <$> (maybeToResult . parseTime' =<< valFromObj "created_at" obj)
+                                      <*> valFromObj "id" obj
+                                      <*> valFromObj "text" obj
+                                      <*> valFromObj "source" obj
+                                      <*> valFromObj "truncated" obj
+                                      <*> valMayFromObj "in_reply_to_status_id" obj
+                                      <*> valMayFromObj "in_reply_to_user_id" obj
+                                      <*> valFromObj "favorited" obj
+                                      <*> valMayFromObj "in_reply_to_screen_name" obj
+                                      <*> (decodeUser =<< valFromObj "user" obj)
+                                      <*> getRetweetedStatus obj
+decodeStatus' j = Error $ "invalid JSValue" ++ show j
 
 getRetweetedStatus :: JSObject JSValue -> Result (Maybe Status)
 getRetweetedStatus obj =
@@ -140,6 +164,29 @@ decodeUser (JSObject obj) = TwitterUser <$> valFromObj "id" obj
 decodeUser j = Error $ "invalid JSValue" ++ show j
 
 
+decodeEntities :: JSValue -> Result Entities
+decodeEntities (JSObject obj) = Entities <$> (valFromObj "urls" obj >>= mapM decodeUrlEntity)
+decodeEntities j = Error $ "invalid JSValue" ++ show j
+
+
+decodeUrlEntity :: JSValue -> Result UrlEntity
+decodeUrlEntity (JSObject obj) = UrlEntity <$> valFromObj "url" obj
+                                           <*> valMayFromObj "display_url" obj
+                                           <*> valMayFromObj "expanded_url" obj
+                                           <*> (valFromObj "indices" obj >>= l2t)
+  where
+    l2t [i, j] = Ok (i, j)
+    l2t xs     = Error $ "not a [i, j], but" ++ show xs
+
+decodeUrlEntity j = Error $ "invalid JSValue" ++ show j
+
+
+expandUrls :: [UrlEntity] -> String -> String
+expandUrls [] text       = text
+expandUrls (ue@(UrlEntity { ueExpandedUrl = Just eurl, ueIndices = (start, end) }):ues) text = expandUrls ues $ take start text ++ eurl ++ drop end text
+expandUrls (_:ues) text = expandUrls ues text
+
+
 parseTime' :: String -> Maybe UTCTime
 parseTime' = parseTime defaultTimeLocale "%c"
 
@@ -154,7 +201,7 @@ getHomeTimeline :: Token
                 -> Maybe Integer -- ^ Returns results with an ID greater than this ID
                 -> IO (Result Timeline)
 getHomeTimeline tok mLastId = do
-    let query = ("count", "20") : (maybeToList $ (("since_id", ) . show) <$> mLastId)
+    let query = ("count", "20") : ("include_entities", "1") : (maybeToList $ (("since_id", ) . show) <$> mLastId)
     json <- callAPI GET tok "statuses/home_timeline" query
     return $ json >>= decodeTimeline
 
@@ -164,7 +211,7 @@ getMentions :: Token
             -> Maybe Integer -- ^ Returns results with an ID greater than this ID
             -> IO (Result Timeline)
 getMentions tok mLastId = do
-    let query = ("count", "20") : (maybeToList $ (("since_id", ) . show) <$> mLastId)
+    let query = ("count", "20") : ("include_entities", "1") : (maybeToList $ (("since_id", ) . show) <$> mLastId)
     json <- callAPI GET tok "statuses/mentions" query
     return $ json >>= decodeTimeline
 
@@ -208,7 +255,7 @@ getLastStatus :: Token -> IO (Result Status)
 getLastStatus tok = do
     -- if last status is official RT, count=1 return empty list
     -- so use count=5
-    json <- callAPI GET tok "statuses/user_timeline" [("count", "5")]
+    json <- callAPI GET tok "statuses/user_timeline" [("count", "5"), ("include_entities", "1")]
     -- FIXME: crash when returned empty array
     return $ json >>= readJSON >>= decodeStatus . head
 
@@ -259,6 +306,7 @@ getUserTimeline :: Token
                 -> IO (Result Timeline)
 getUserTimeline tok sname mnum = do
     json <- callAPI GET tok "statuses/user_timeline" $ catMaybes [Just ("screen_name", sname)
+                                                                 ,Just ("include_entities", "1")
                                                                  , ("count", ) . show <$> mnum]
     return $ json >>= decodeTimeline
 
