@@ -78,7 +78,7 @@ data SessionState = SS
     , sRealName :: Maybe CommandArg
     , sToken :: Maybe Token
     , sThreadIds :: [ThreadId]
-    , sDBConn :: DB.Connection
+    , sDBConn :: Maybe DB.Connection
     , sJoinedChannels :: [HChannel]
     }
 
@@ -92,7 +92,7 @@ newEmptyState = SS
     , sRealName = Nothing
     , sToken = Nothing
     , sThreadIds = []
-    , sDBConn = undefined
+    , sDBConn = Nothing
     , sJoinedChannels = []
     }
 

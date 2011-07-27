@@ -188,7 +188,7 @@ openUserDatabase = do
     let dp = cp </> "cache.sqlite"
     debug ("opening database" :: String, dp)
     conn <- liftIO $ openDatabase dp
-    modifyLocal $ \s -> s { sDBConn = conn }
+    modifyLocal $ \s -> s { sDBConn = Just conn }
 
 loadTwitterToken :: HTIG (Maybe Token)
 loadTwitterToken = do

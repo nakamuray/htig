@@ -27,6 +27,8 @@ module HTIG.Utils
     ) where
 
 import Control.Applicative ((<$>), (<*))
+import Control.Concurrent.STM (atomically, retry, readTVar, writeTVar)
+import Control.Exception (bracket)
 import Control.Monad (when)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>))
@@ -136,16 +138,40 @@ updateTwitterStatus cname arg = do
     return ()
 
 withTransaction :: (HTIG.Database.Connection -> IO a) -> HTIG a
-withTransaction h = withConnection h <* withConnection commit
+withTransaction h = withConnection $ \conn -> h conn <* commit conn
 
 withTransactionH :: (HTIG.Database.Connection -> HTIG a) -> HTIG a
-withTransactionH h = withConnectionH h <* withConnection commit
+withTransactionH h = withConnectionH $ \conn -> h conn <* liftIO (commit conn)
 
 withConnection :: (HTIG.Database.Connection -> IO a) -> HTIG a
 withConnection h = withConnectionH $ liftIO . h
 
 withConnectionH :: (HTIG.Database.Connection -> HTIG a) -> HTIG a
-withConnectionH h = sDBConn <$> getLocal >>= h
+withConnectionH h = do
+    conn <- getConnection
+    h conn <* putConnection conn
+
+getConnection :: HTIG HTIG.Database.Connection
+getConnection = do
+    debug "get connection"
+    tv <- asks ircLocal
+    liftIO $ atomically $ do
+        s <- readTVar tv
+        case sDBConn s of
+            Just conn -> do
+                writeTVar tv s { sDBConn = Nothing }
+                return conn
+            Nothing   -> retry
+
+putConnection :: HTIG.Database.Connection -> HTIG ()
+putConnection conn = do
+    debug "put connection"
+    tv <- asks ircLocal
+    liftIO $ atomically $ do
+        s <- readTVar tv
+        case sDBConn s of
+            Just conn -> error $ "connection already there"
+            Nothing   -> writeTVar tv s { sDBConn = Just conn }
 
 writeStatus :: ChannelName -> Status -> HTIG ()
 writeStatus = writeStatus' writePrivMsg' PrivMsg
